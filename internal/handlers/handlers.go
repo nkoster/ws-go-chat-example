@@ -22,7 +22,7 @@ var views = jet.NewSet(
 func Home(w http.ResponseWriter, r *http.Request) {
 	err := RenderPage(w, "home.jet", nil)
 	if err != nil {
-		log.Println(err)
+		log.Println("Home page render error", err)
 	}
 }
 
@@ -49,18 +49,20 @@ type WsPayload struct {
 func WsEndpoint(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgradeConnection.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
+		log.Println("Upgrade error:", err)
 	}
 	log.Println("Client connected to WsEndpoint")
 	var response WsJsonResponse
-	response.Message = `<em><small>aap</small></em>`
-
+	response.Message = ""
+	response.Action = "list_users"
+	users := getUserList()
+	response.ConnectedUsers = users
 	conn := WebsocketConnection{Conn: ws}
 	clients[conn] = ""
 
 	err = ws.WriteJSON(response)
 	if err != nil {
-		log.Println(err)
+		log.Println("Write error:", err)
 	}
 	go ListenForWs(&conn)
 }
@@ -84,6 +86,7 @@ func ListenForWs(conn *WebsocketConnection) {
 		err := conn.ReadJSON(&payload)
 		if err != nil {
 			// Do nothing, there's just no payload
+			break
 		} else {
 			payload.Conn = *conn
 			wsChan <- payload
@@ -133,7 +136,7 @@ func broadcastToAll(response WsJsonResponse) {
 	for client := range clients {
 		err := client.WriteJSON(response)
 		if err != nil {
-			log.Println("Websocket Error")
+			log.Println("Websocket Error", err)
 			_ = client.Close()
 			delete(clients, client)
 		}
@@ -144,13 +147,13 @@ func RenderPage(w http.ResponseWriter, tmpl string, data jet.VarMap) error {
 
 	view, err := views.GetTemplate(tmpl)
 	if err != nil {
-		log.Println(err)
+		log.Println("Render view error:", err)
 		return err
 	}
 
 	err = view.Execute(w, data, nil)
 	if err != nil {
-		log.Println(err)
+		log.Println("Render execute error:", err)
 		return err
 	}
 
