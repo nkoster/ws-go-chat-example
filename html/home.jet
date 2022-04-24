@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/notie/4.3.1/notie.min.css" integrity="sha512-UrjLcAek5jbj1vwGbXkviPHtgSNVNQCedX7cBIMDdSI2iZtUcZcoTh2Sqc8R9mVcijOjFUi1IlxhfrE1uWaIog==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        .chatbox {
+            outline: 1px solid silver;
+            min-height: 160px;
+            padding: .5em;
+        }
+    </style>
+    <title>Home</title>
+</head>
+<body>
+
+<div class="container">
+    <div class="row">
+        <div class="col">
+            <h1 class="mt-3">This the Home Page</h1>
+            <hr>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-8">
+            <h3>Chat</h3>
+            <a href="https://github.com">Go to github</a>
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" name="username" id="username" class="form-control" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="message">Message:</label>
+                <input type="text" name="message" id="message" class="form-control" autocomplete="off">
+            </div>
+            <hr>
+            <a href="javascript:void(0)" class="btn ntn-outline-secondary" id="sendBtn">Send Message</a>
+            <input type="hidden" name="action" id="action">
+            <hr>
+            <div id="output" class="chatbox">
+        </div>
+        </div>
+        <div class="col-md-4">
+            <h3>Who's online</h3>
+            <ul id="online_users"></ul>
+        </div>
+    </div>
+</div>
+
+<!-- Notie alert system -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/notie/4.3.1/notie.min.js" integrity="sha512-NHRCwRf2LnVSlLDejCA9oS3fG3/FLSQIPCjAWl3M7tVi5wszwr6FxkjotWnQDXLE+aLKcxRrzFDNEgXj9nvkPw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<!-- JavaScript Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+
+<script>
+    let socket = null
+    const message = document.querySelector('#message')
+    const output = document.querySelector('#output')
+    const username = document.querySelector('#username')
+    const sendBtn = document.querySelector('#sendBtn')
+    const wsEndpoint = `${location.protocol === 'http:' ? 'ws' : 'wss'}://${location.host}/ws`
+    console.log(wsEndpoint, location.protocol)
+    window.onbeforeunload = () => {
+      console.log('Leaving...')
+      const jsonData = {}
+      jsonData['action'] = 'left'
+      socket.send(JSON.stringify(jsonData))
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      socket = new WebSocket(wsEndpoint)
+      socket.onopen = () => {
+        console.log('Successfully connected')
+      }
+      socket.onclose = () => {
+        console.log('Connection closed')
+      }
+      socket.onerror = error => {
+        console.log('There was an error:', error.message)
+      }
+      socket.onmessage = msg => {
+        const data = JSON.parse(msg.data)
+        console.log('data', data)
+        switch (data.action) {
+          case 'list_users': {
+            const ul = document.querySelector('#online_users')
+            while (ul.firstChild) ul.removeChild(ul.firstChild)
+            if (data.connected_users) {
+              data.connected_users.forEach(user => {
+                if (user) {
+                  const li = document.createElement('li')
+                  li.appendChild(document.createTextNode(user))
+                  ul.appendChild(li)
+                }
+              })
+            }
+          }
+          break
+          case 'broadcast': {
+            output.innerHTML += `${data.message}<br>`
+          }
+          break
+        }
+      }
+
+      username.addEventListener('change', e => {
+        const jsonData = {}
+        jsonData['action'] = "username"
+        jsonData['username'] = e.target.value
+        socket.send(JSON.stringify(jsonData))
+      })
+
+      message.addEventListener('keydown', e => {
+        if (e.code === 'Enter') {
+          e.preventDefault()
+          e.stopPropagation()
+          sendMessage()
+        }
+      })
+    })
+
+    function sendMessage() {
+      if (username.value === '' || message.value === '' || !socket) {
+        errorAlert('fill out user name and message')
+        return false
+      }
+      const jsonData = {}
+      jsonData['action'] = 'broadcast'
+      jsonData['username'] = username.value
+      jsonData['message'] = message.value
+      socket.send(JSON.stringify(jsonData))
+      message.value = ''
+    }
+
+    sendBtn.addEventListener('click', () => {
+      sendMessage()
+    })
+
+    function errorAlert(msg) {
+      notie.alert({
+        type: 'error',
+        text: msg,
+      })
+    }
+
+</script>
+</body>
+</html>
